@@ -1058,7 +1058,6 @@ static bool check_create_domain(dds_domainid_t did, rmw_discovery_params_t * dis
     dom.discovery_params = *discovery_params;
 
     std::string config = "<CycloneDDS><Domain>";
-    bool add_localhost_as_static_peer = false;
 
     switch (discovery_params->automatic_discovery_range) {
       case RMW_AUTOMATIC_DISCOVERY_RANGE_SUBNET:
@@ -1081,8 +1080,14 @@ static bool check_create_domain(dds_domainid_t did, rmw_discovery_params_t * dis
       case RMW_AUTOMATIC_DISCOVERY_RANGE_LOCALHOST:
       case RMW_AUTOMATIC_DISCOVERY_RANGE_DEFAULT:
         /* Automatic discovery on localhost only */
-        add_localhost_as_static_peer = true;
-        /* Intentionally fall through to the OFF case */
+        config +=
+          "<General>"
+            "<Interfaces>"
+              "<NetworkInterface name=\"lo\" multicast=\"true\" priority=\"0\"/>"
+              "<NetworkInterface name=\"eth0\" multicast=\"false\" priority=\"0\"/>"
+            "</Interfaces>"
+          "</General>";
+        break;
       case RMW_AUTOMATIC_DISCOVERY_RANGE_OFF:
         /* Automatic discovery off: disable multicast entirely. */
         config +=
@@ -1096,17 +1101,15 @@ static bool check_create_domain(dds_domainid_t did, rmw_discovery_params_t * dis
 
     config +=
       "<Discovery>"
+        /* Assign the participant index (used to calculate the port number for
+           the participant) automatically according to the DDSI spec so that
+           unicast discovery can work correctly. */
         "<ParticipantIndex>"
           "auto"
         "</ParticipantIndex>";
 
-    if (discovery_params->static_peers_count > 0 || add_localhost_as_static_peer) {
+    if (discovery_params->static_peers_count > 0) {
       config += "<Peers>";
-
-      if (add_localhost_as_static_peer) {
-        config += "<Peer address=\"127.0.0.1\"/>";
-      }
-
       for (size_t ii = 0; ii < discovery_params->static_peers_count; ++ii) {
         config += "<Peer address=\"";
         config += discovery_params->static_peers[ii];
